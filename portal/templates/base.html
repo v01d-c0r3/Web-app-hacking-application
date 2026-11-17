@@ -4,29 +4,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Vulnerable Web Labs{% endblock %}</title>
+  <title>{% block title %}PWNShop{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
 
   <header class="site-header">
-    <a href="{% url 'labs:lab_list' %}" class="site-name">Vulnerable Web Labs</a>
+    <nav class="navbar container" aria-label="Main">
+      <a href="{% url 'core:home' %}" class="brand">PWNShop</a>
 
-    {% if user.is_authenticated %}
-      <div class="site-account">
-        <span>{{ user.get_username }}</span>
-        {# Logging out is a POST: Django's LogoutView refuses a plain GET link. #}
-        <form method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button type="submit" class="link-button">Log out</button>
-        </form>
-      </div>
-    {% endif %}
+      <ul class="nav-links">
+        {# Absolute, not bare #about, so these still work from the login and labs pages. #}
+        <li><a href="{% url 'core:home' %}#about">About</a></li>
+        <li><a href="{% url 'core:home' %}#how-it-works">How it works</a></li>
+
+        {% if user.is_authenticated %}
+          <li>
+            <a href="{% url 'labs:lab_list' %}"{% if request.resolver_match.view_name == 'labs:lab_list' %} aria-current="page"{% endif %}>Labs</a>
+          </li>
+          <li>
+            {# Logging out is a POST: Django's LogoutView refuses a plain GET link. #}
+            <form method="post" action="{% url 'logout' %}" class="nav-form">
+              {% csrf_token %}
+              <button type="submit" class="button button--small button--outline">Log out</button>
+            </form>
+          </li>
+        {% else %}
+          <li><a href="{% url 'login' %}" class="button button--small">Log in</a></li>
+        {% endif %}
+      </ul>
+    </nav>
   </header>
 
-  <main class="site-main">
+  <main class="{% block main_class %}page container{% endblock %}">
     {% block content %}{% endblock %}
   </main>
+
+  <footer class="site-footer">
+    <div class="container footer-bottom">
+      <p>MEng Leeds Beckett University Team Project - Ciaran Harney - Harrison Hargreaves - Filippi Santos</p>
+    </div>
+  </footer>
 
 </body>
 </html>

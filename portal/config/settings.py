@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'core',
     'labs',
 ]
 
@@ -177,4 +178,4 @@ LOGIN_URL = 'login'
 
 LOGIN_REDIRECT_URL = 'labs:lab_list'
 
-LOGOUT_REDIRECT_URL = 'login'
+LOGOUT_REDIRECT_URL = 'core:home'
