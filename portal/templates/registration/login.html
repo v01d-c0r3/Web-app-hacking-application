@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  Django's built-in LoginView renders this - see config/urls.py. No sign-up or
+  forgotten-password link yet: accounts are created by staff in the admin.
+{% endcomment %}
+
+{% block title %}Log in - Vulnerable Web Labs{% endblock %}
+
+{% block content %}
+<section class="login">
+  <h1>Log in</h1>
+
+  <form method="post" class="form">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="form-error">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="{{ form.username.id_for_label }}">Username</label>
+      {{ form.username }}
+      {% for error in form.username.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.password.id_for_label }}">Password</label>
+      {{ form.password }}
+      {% for error in form.password.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+
+    <button type="submit" class="button">Log in</button>
+  </form>
+</section>
+{% endblock %}
