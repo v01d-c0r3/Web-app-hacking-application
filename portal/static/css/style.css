@@ -1,69 +1,414 @@
-/* Site-wide styles for the portal. Loaded by templates/base.html. */
+/* Site-wide styles for the portal. Loaded by templates/base.html.
+
+   Brand colours are #743bbc and white. White text on #743bbc has a contrast
+   ratio of about 6.8:1, which passes WCAG AA for body text - so the purple
+   can carry text, not just decoration. */
 
 :root {
-  --text: #17212b;
-  --muted: #5b6875;
-  --border: #d5dce2;
-  --accent: #c46b16;
-  --accent-soft: #fff4e5;
+  --purple: #743bbc;
+  --purple-dark: #5c2e96;   /* hover / pressed */
+  --purple-tint: #f4effa;   /* tinted section backgrounds */
+  --white: #ffffff;
+  --text: #1f1830;
+  --muted: #5d566b;
+  --border: #e2dbec;
   --error: #b42318;
   --error-soft: #fef3f2;
+  --radius: 0.5rem;
+  --max-width: 1080px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 0 1rem 3rem;
-  font: 1rem/1.6 system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin: 0;
+  font: 1rem/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
-  background: #fff;
+  background: var(--white);
 }
 
-h1 {
+main {
+  flex: 1;
+}
+
+h1,
+h2,
+h3 {
   line-height: 1.2;
 }
 
-
-/* Header */
-
-.site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.25rem 0;
-  border-bottom: 1px solid var(--border);
+a {
+  color: var(--purple);
 }
 
-.site-name {
+a:hover {
+  color: var(--purple-dark);
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Ordinary pages (login, labs) - a narrower reading column. */
+.page {
+  max-width: 760px;
+  padding-top: 2rem;
+  padding-bottom: 3rem;
+}
+
+
+/* Buttons */
+
+.button {
+  display: inline-block;
+  padding: 0.65rem 1.4rem;
+  border: 2px solid var(--purple);
+  border-radius: var(--radius);
+  background: var(--purple);
+  color: var(--white);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--purple-dark);
+  background: var(--purple-dark);
+  color: var(--white);
+}
+
+.button--small {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.95rem;
+}
+
+.button--outline {
+  background: transparent;
+  color: var(--purple);
+}
+
+.button--outline:hover {
+  background: var(--purple);
+  color: var(--white);
+}
+
+/* For use on purple backgrounds. */
+.button--light {
+  border-color: var(--white);
+  background: var(--white);
+  color: var(--purple);
+}
+
+.button--light:hover {
+  border-color: var(--purple-tint);
+  background: var(--purple-tint);
+  color: var(--purple-dark);
+}
+
+.button--outline-light {
+  border-color: var(--white);
+  background: transparent;
+  color: var(--white);
+}
+
+.button--outline-light:hover {
+  border-color: var(--white);
+  background: var(--white);
+  color: var(--purple);
+}
+
+.button:focus-visible,
+.nav-links a:focus-visible,
+.brand:focus-visible {
+  outline: 3px solid var(--purple);
+  outline-offset: 2px;
+}
+
+.hero .button:focus-visible,
+.cta .button:focus-visible {
+  outline-color: var(--white);
+}
+
+
+/* Header and navigation */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  background: var(--white);
+}
+
+.navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.brand {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--purple);
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-links a:not(.button) {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nav-links a:not(.button):hover,
+.nav-links a[aria-current='page'] {
+  color: var(--purple);
+}
+
+.nav-links a[aria-current='page'] {
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
+.nav-form {
+  margin: 0;
+}
+
+
+/* Landing page */
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--purple);
+}
+
+.hero {
+  background: var(--purple);
+  color: var(--white);
+}
+
+.hero-inner {
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+
+.hero .eyebrow {
+  color: var(--white);
+  opacity: 0.85;
+}
+
+.hero-title {
+  max-width: 16ch;
+  margin: 0 0 1rem;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+}
+
+.hero-lead {
+  max-width: 38rem;
+  margin: 0 0 2rem;
+  font-size: 1.15rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.section {
+  padding: 4.5rem 0;
+}
+
+.section--tinted {
+  background: var(--purple-tint);
+}
+
+.section-title {
+  margin: 0 0 2rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 2rem 3rem;
+}
+
+.about-text p {
+  margin-top: 0;
+}
+
+.list-title {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag-list li {
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--purple-tint);
+  color: var(--purple-dark);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+
+.step h3 {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.step p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--purple);
+  color: var(--white);
+  font-weight: 700;
+}
+
+.cta {
+  background: var(--purple);
+  color: var(--white);
+}
+
+.cta-inner {
+  padding-top: 3.5rem;
+  padding-bottom: 3.5rem;
+  text-align: center;
+}
+
+.cta-title {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.cta-inner p {
+  margin: 0 0 1.5rem;
+}
+
+.cta-inner .button {
+  margin-top: 0.5rem;
+}
+
+
+/* Footer */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: var(--white);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1.5rem 3rem;
+  padding-top: 2.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.footer-brand {
+  margin: 0 0 0.5rem;
+  font-weight: 800;
+  color: var(--purple);
+}
+
+.footer-note {
+  max-width: 34rem;
+  margin: 0;
+}
+
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-links a {
   color: var(--text);
   text-decoration: none;
 }
 
-.site-account {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: var(--muted);
-}
-
-.site-account form {
-  margin: 0;
-}
-
-.link-button {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
+.footer-links a:hover {
+  color: var(--purple);
   text-decoration: underline;
-  cursor: pointer;
 }
 
-.site-main {
-  padding-top: 1.5rem;
+.footer-bottom {
+  padding-top: 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
+.footer-bottom p {
+  margin: 0;
+  font-size: 0.85rem;
 }
 
 
@@ -71,8 +416,8 @@ h1 {
 
 .notice {
   padding: 1rem;
-  border-left: 4px solid var(--accent);
-  background: var(--accent-soft);
+  border-left: 4px solid var(--purple);
+  background: var(--purple-tint);
 }
 
 .lab-list {
@@ -82,9 +427,9 @@ h1 {
 
 .lab-card {
   margin: 1rem 0;
-  padding: 1rem;
+  padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  border-radius: var(--radius);
 }
 
 .lab-card h2 {
@@ -96,7 +441,8 @@ h1 {
 /* Forms */
 
 .login {
-  max-width: 22rem;
+  max-width: 24rem;
+  margin: 0 auto;
 }
 
 .field {
@@ -110,22 +456,20 @@ h1 {
 }
 
 .field input {
-  box-sizing: border-box;
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.6rem;
   border: 1px solid var(--border);
   border-radius: 0.375rem;
   font: inherit;
 }
 
-.button {
-  padding: 0.5rem 1.25rem;
-  border: 0;
-  border-radius: 0.375rem;
-  background: var(--text);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
+.field input:focus {
+  border-color: var(--purple);
+  outline: 2px solid var(--purple-tint);
+}
+
+.form .button {
+  width: 100%;
 }
 
 .form-error {

@@ -54,7 +54,8 @@ inside one.
 ```
 portal/                  Django project - manage.py lives here
   config/                settings, urls, wsgi/asgi, test runner
-  labs/                  Lab model + admin, the lab list page
+  core/                  public pages: the landing page at /
+  labs/                  Lab model + admin, the lab list page at /labs/
   templates/             site-wide templates: base.html, registration/login.html
   static/                site-wide CSS
   Dockerfile  entrypoint.sh  requirements.txt  .env.example
@@ -68,9 +69,14 @@ docker-compose.yml       the portal + an include: line per lab
 
 Update this list as things land. As of 2026-11-17:
 
-- **Portal:** Django 6.1. Login and logout; a `Lab` model managed in the
-  admin, with Fellside seeded by a data migration; the lab list, behind login.
-  Accounts are created by staff in the admin - there is no sign-up page.
+- **Portal:** Django 6.1. A public landing page (hero, About, How it works,
+  log-in call to action) with a shared nav bar and footer; login and logout;
+  a `Lab` model managed in the admin, with Fellside seeded by a data
+  migration; the lab list at `/labs/`, behind login. Accounts are created by
+  staff in the admin - there is no sign-up page.
+- **Brand:** the site is called **PWNShop**; colours `#743bbc` and white, as CSS variables at the top of
+  `portal/static/css/style.css`. White on `#743bbc` passes WCAG AA, so the
+  purple can carry text.
 - **Fellside:** a complete shop that is intentionally *secure* so far - no
   vulnerabilities added yet. Its README lists where each class would fit.
 - **Not built yet:** any vulnerability; the exploit/defend teaching content;
@@ -159,3 +165,10 @@ At least one of us develops on Windows. `.gitattributes` forces LF for shell
 scripts and Dockerfiles, because a CRLF entrypoint makes a Linux container die
 on start with a misleading "no such file or directory". Keep new scripts
 covered by it.
+
+## Commits and pull requests
+
+No AI attribution of any kind. Don't add a `Co-Authored-By: Claude ...`
+trailer to commit messages, a "Generated with Claude Code" line to PR
+descriptions, or any other mention that Claude wrote the work. This
+overrides Claude Code's default attribution settings.

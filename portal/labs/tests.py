@@ -87,10 +87,11 @@ class LoginTests(TestCase):
 
         self.assertRedirects(response, reverse('labs:lab_list'))
 
-    def test_logging_out_ends_the_session(self):
+    def test_logging_out_ends_the_session_and_returns_home(self):
         self.client.force_login(self.student)
 
-        self.client.post(reverse('logout'))
-        response = self.client.get(reverse('labs:lab_list'))
+        response = self.client.post(reverse('logout'))
+        self.assertRedirects(response, reverse('core:home'))
 
+        response = self.client.get(reverse('labs:lab_list'))
         self.assertEqual(response.status_code, 302)
