@@ -1,12 +1,28 @@
 services:
+  # The one container that holds real user data. Every lab next to it is
+  # exploitable on purpose, so this one is locked down: read-only filesystem,
+  # no Linux capabilities, its own network. It only links to the labs - it
+  # never starts, stops or proxies them, and never mounts the Docker socket.
   portal:
-    build:
-      context: .
+    build: ./portal
+    restart: unless-stopped
+
+    # Read on the host and passed in as environment variables, so the secrets
+    # never exist as a file inside the image or the container.
+    env_file: ./portal/.env
+
+    environment:
+      # Set here rather than in .env so it is always right inside the
+      # container: the filesystem is read-only, so the database has to live on
+      # the volume below.
+      DJANGO_DB_PATH: /data/db.sqlite3
+
+    volumes:
+      - portal-data:/data
+
     ports:
       - "127.0.0.1:8000:8000"
-    environment:
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
-      VULNERABLE_SITES_DIR: /app/vulnerable-sites
+
     read_only: true
     tmpfs:
       - /tmp
@@ -15,8 +31,11 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 100
-    depends_on:
-      - fellside
 
+volumes:
+  portal-data:
+
+# One entry per lab. Each lab's own compose file keeps it on its own network,
+# away from the portal and from the other labs.
 include:
   - path: ./vulnerable-sites/fellside/docker-compose.yml

@@ -1,0 +1,32 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Vulnerable Web Labs{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+  <header class="site-header">
+    <a href="{% url 'labs:lab_list' %}" class="site-name">Vulnerable Web Labs</a>
+
+    {% if user.is_authenticated %}
+      <div class="site-account">
+        <span>{{ user.get_username }}</span>
+        {# Logging out is a POST: Django's LogoutView refuses a plain GET link. #}
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="link-button">Log out</button>
+        </form>
+      </div>
+    {% endif %}
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

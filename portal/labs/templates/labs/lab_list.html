@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Labs - Vulnerable Web Labs{% endblock %}
+
+{% block content %}
+<h1>Labs</h1>
+
+<p class="notice">
+  Every lab here is deliberately vulnerable. Attack only the labs linked from
+  this page - using these techniques on systems you don't have permission to
+  test is illegal.
+</p>
+
+{% if labs %}
+  <ul class="lab-list">
+    {% for lab in labs %}
+      <li class="lab-card">
+        <h2>{{ lab.name }}</h2>
+        <p>{{ lab.description }}</p>
+        {# A new tab with no window.opener: labs run attacker-written script by design, which must not be able to navigate this tab. #}
+        <a href="{{ lab.url }}" target="_blank" rel="noopener noreferrer">Open lab</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No labs are available yet.</p>
+{% endif %}
+{% endblock %}

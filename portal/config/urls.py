@@ -1,6 +1,34 @@
-from django.urls import path
+"""
+URL configuration for config project.
 
-from catalog.views import index
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/6.1/topics/http/urls/
+Examples:
+Function views
+    1. Add an import:  from my_app import views
+    2. Add a URL to urlpatterns:  path('', views.home, name='home')
+Class-based views
+    1. Add an import:  from other_app.views import Home
+    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
+Including another URLconf
+    1. Import the include() function: from django.urls import include, path
+    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+"""
+from django.contrib import admin
+from django.contrib.auth import views as auth_views
+from django.urls import include, path
 
+urlpatterns = [
+    path('admin/', admin.site.urls),
 
-urlpatterns = [path("", index, name="index")]
+    # Just these two rather than all of django.contrib.auth.urls: the rest is
+    # the password reset flow, which emails a link and needs real mail set up.
+    path(
+        'accounts/login/',
+        auth_views.LoginView.as_view(redirect_authenticated_user=True),
+        name='login',
+    ),
+    path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
+
+    path('', include('labs.urls')),
+]

@@ -1,0 +1,6 @@
+# Shell scripts and Dockerfiles run inside Linux containers. Checked out with
+# CRLF endings (the Windows default), a script's shebang becomes "/bin/sh\r"
+# and the container dies on start with a misleading "no such file or
+# directory". Force LF for them on every platform.
+*.sh text eol=lf
+Dockerfile text eol=lf

@@ -1,72 +1,83 @@
 # Web-app-hacking-application
 
-## Local lab portal
+A cybersecurity teaching tool. Students log in to a Django portal and work
+through labs - deliberately vulnerable web apps, each in its own container -
+to exploit the most common web security issues and learn how to defend
+against them.
 
-This repository contains a Django portal and containerized practice websites.
-The portal discovers site folders that have a container build file and a
-`site.json` manifest.
+Scope, architecture, conventions and open decisions are in
+[CLAUDE.md](CLAUDE.md).
 
-### Start
+## Layout
 
-Requires Docker Engine and Docker Compose v2.20 or newer:
+- `portal/` - the Django portal: accounts, login and the lab catalogue.
+- `vulnerable-sites/<lab>/` - one deliberately vulnerable app per folder, each
+  with its own `Dockerfile` and `docker-compose.yml`.
+- `docker-compose.yml` - runs the portal plus every lab.
 
-```bash
-docker compose up --build
-```
+## Run everything with Docker
 
-Open the portal at <http://localhost:8000> and the Fellside lab at
-<http://localhost:8080>. Stop the containers with `Ctrl+C` or
-`docker compose down`.
+Needs Docker Engine with Compose v2.20 or newer.
 
-Both ports are bound to loopback only. The Fellside container is on an
-separate Docker network from the Django portal, which does not mount the
-Docker socket or manage containers itself. Keep this lab local and do not
-expose its ports to the internet or an untrusted network.
+1. Copy `portal/.env.example` to `portal/.env` and set `DJANGO_SECRET_KEY`
+   (the file explains how to generate one).
+2. Start everything:
 
-### Adding a site
+   ```bash
+   docker compose up --build
+   ```
 
-Add a container build or Compose file and a `site.json` to a direct child
-directory of `vulnerable-sites/`:
+3. Create a login (accounts are made by staff - there is no sign-up page yet):
 
-```json
-{
-  "name": "Example lab",
-  "description": "Short description for the portal.",
-  "url": "http://localhost:8090"
-}
-```
+   ```bash
+   docker compose exec portal python manage.py createsuperuser
+   ```
 
-The URL must use plain HTTP and resolve to `localhost`, `127.0.0.1`, or
-`::1`. Add the site's service to the root `docker-compose.yml` include list
-and bind its published port to `127.0.0.1`.
+4. Open the portal at <http://localhost:8000> and the Fellside lab at
+   <http://localhost:8080>.
 
-### Current site content
+Both ports are bound to `127.0.0.1`, so nothing is reachable from other
+machines. Stop with `Ctrl+C` or `docker compose down`.
 
-- `vulnerable-sites/fellside/` is a working PHP/SQLite site running in a
-  container. It currently has secure implementations and is a base for
-  intentionally vulnerable variants.
-- `vulnerable-sites/e-commerce/` is not configured yet.
+## Work on the portal without Docker
 
-### Development
-
-Install `requirements.txt`, then run:
+From `portal/`, with Python 3.12 or newer:
 
 ```bash
-cd portal
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env             # Windows: copy .env.example .env
+```
+
+Set `DJANGO_SECRET_KEY` in `.env`, and `DJANGO_DEBUG=True` for local work.
+Then:
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
 python manage.py test
-python manage.py runserver 127.0.0.1:8000
+python manage.py runserver
 ```
 
-The Django development server only serves the portal; start the lab services
-with Docker Compose as shown above.
+`runserver` only serves the portal. Start the labs with Docker Compose.
 
-### Potential Vulnerabilities
+## Adding a lab
+
+1. Add a folder under `vulnerable-sites/` with its own `Dockerfile` and
+   `docker-compose.yml`. Put the service on its own network and publish its
+   port on `127.0.0.1`.
+2. Add it to the `include:` list in the root `docker-compose.yml`.
+3. Add the lab in the Django admin (`/admin/` -> Labs), with the URL students
+   should open.
+
+## Vulnerabilities
 
 - [ ] SQL Injection
 - [ ] IDOR
-- [ ] Cross Site Scripting
+- [ ] Cross-Site Scripting
 - [ ] Broken Access Control
 - [ ] OS Command Injection
-- [ ] Client Side Request Forgery
-- [ ] Server Side Request Forgery
-- [ ] Server Side Template Injection
+- [ ] Cross-Site Request Forgery
+- [ ] Server-Side Request Forgery
+- [ ] Server-Side Template Injection

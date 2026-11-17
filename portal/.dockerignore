@@ -1,0 +1,11 @@
+# Secrets reach the container from compose's env_file at run time - never from
+# a file baked into an image layer.
+.env
+.env.example
+
+# Local data and build output. The container's database lives on a volume.
+db.sqlite3
+staticfiles/
+.venv/
+__pycache__/
+*.pyc
