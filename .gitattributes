@@ -4,3 +4,5 @@
 # directory". Force LF for them on every platform.
 *.sh text eol=lf
 Dockerfile text eol=lf
+# Mounted into the lab proxy container and read there.
+Caddyfile text eol=lf

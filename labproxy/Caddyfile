@@ -1,0 +1,41 @@
+# The lab proxy: forwards https://<lab>-<8 hex>.<domain>/ to that container.
+#
+# The host's Caddy terminates HTTPS for *.<domain> and passes requests here on
+# 127.0.0.1:8081. The lab manager connects this container to each lab
+# instance's private network, so Docker's DNS resolves an instance by its
+# container name - which is exactly the first label of its hostname.
+#
+# Being on every lab network means every lab can reach this proxy. Without a
+# guard, a student could send it a request for another student's hostname
+# and reach their instance. So only requests carrying the key the host's Caddy
+# adds are forwarded, and the key is stripped before it reaches a lab.
+
+{
+	admin off
+	auto_https off
+}
+
+:8081 {
+	@from_edge header X-Lab-Proxy-Key {$LAB_PROXY_KEY}
+
+	handle @from_edge {
+		@instance header_regexp instance Host ^([a-z0-9-]+-[0-9a-f]{8})\.
+		handle @instance {
+			reverse_proxy {re.instance.1}:80 {
+				header_up -X-Lab-Proxy-Key
+			}
+		}
+		handle {
+			respond "No such lab." 404
+		}
+	}
+
+	handle {
+		respond "Not found." 404
+	}
+
+	# The usual cause is an instance that has expired or been stopped.
+	handle_errors 502 {
+		respond "This lab isn't running any more. Start it again from the PWNShop lab list." 502
+	}
+}

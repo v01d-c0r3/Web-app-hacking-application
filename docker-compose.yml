@@ -16,12 +16,20 @@ services:
       # container: the filesystem is read-only, so the database has to live on
       # the volume below.
       DJANGO_DB_PATH: /data/db.sqlite3
+      # From the root .env (see .env.example there). Left empty on a laptop,
+      # where the lab list links straight to each lab instead.
+      LAB_MANAGER_URL: ${LAB_MANAGER_URL:-}
+      LAB_MANAGER_TOKEN: ${LAB_MANAGER_TOKEN:-}
 
     volumes:
       - portal-data:/data
 
     ports:
       - "127.0.0.1:8000:8000"
+
+    networks:
+      - default
+      - labcontrol
 
     read_only: true
     tmpfs:
@@ -32,8 +40,77 @@ services:
       - no-new-privileges:true
     pids_limit: 100
 
+  # Starts and stops one lab instance per student when the portal asks. It
+  # holds the Docker socket - root on the VPS - so it lives apart from the
+  # portal and answers only on the internal labcontrol network, behind a
+  # token. Off unless the "labs" profile is on: a laptop doesn't need it.
+  labmanager:
+    build: ./labmanager
+    profiles: [labs]
+    restart: unless-stopped
+    environment:
+      LAB_MANAGER_TOKEN: ${LAB_MANAGER_TOKEN:-}
+      LAB_DOMAIN: ${LAB_DOMAIN:-}
+      LAB_PROXY_CONTAINER: pwnshop-labproxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - labcontrol
+    depends_on:
+      - labproxy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 50
+
+  # Routes https://<lab>-<8 hex>.<domain>/ to that student's instance. The
+  # lab manager connects it to each instance's private network. The host's
+  # Caddy terminates HTTPS and forwards here with LAB_PROXY_KEY attached.
+  labproxy:
+    image: caddy:2-alpine
+    container_name: pwnshop-labproxy
+    profiles: [labs]
+    restart: unless-stopped
+    environment:
+      LAB_PROXY_KEY: ${LAB_PROXY_KEY:-}
+    # An empty key would make the proxy's guard match requests that send an
+    # empty header, so refuse to start without one.
+    entrypoint:
+      - sh
+      - -c
+      - test -n "$$LAB_PROXY_KEY" || { echo "LAB_PROXY_KEY is not set" >&2; exit 1; }; exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
+      - ./labproxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:8081:8081"
+    networks:
+      - labedge
+    read_only: true
+    tmpfs:
+      - /data
+      - /config
+    # The image grants the caddy binary NET_BIND_SERVICE as a file
+    # capability; with it missing from the bounding set the binary won't
+    # exec at all, even though port 8081 doesn't need it.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+
 volumes:
   portal-data:
+
+networks:
+  # Portal <-> lab manager only. Internal: no route off the host.
+  labcontrol:
+    internal: true
+  # Host <-> lab proxy. Needs to be a normal network to publish a port.
+  labedge:
 
 # One entry per lab. Each lab's own compose file keeps it on its own network,
 # away from the portal and from the other labs.

@@ -18,36 +18,56 @@ request forgery, server-side request forgery, server-side template injection.
 
 ## Architecture
 
-One VPS running **1 + X** Docker containers:
+One VPS (live at https://pwnshop.uk) running Docker containers behind the
+host's Caddy, with Cloudflare in front:
 
-- **1 - the portal** (`portal/`, Django). Accounts, login, the lab catalogue,
+- **The portal** (`portal/`, Django). Accounts, login, the lab catalogue,
   and later the teaching content and progress tracking. It holds the only real
   user data on the box, so it is written securely - the opposite of the labs.
-- **X - the labs** (`vulnerable-sites/<lab>/`). One container per deliberately
+- **The labs** (`vulnerable-sites/<lab>/`). One image per deliberately
   vulnerable app, in whatever stack suits it (Fellside is PHP). Each lab folder
   is self-contained - its own `Dockerfile` and `docker-compose.yml` - and is
-  pulled into the root `docker-compose.yml` with `include:`.
+  pulled into the root `docker-compose.yml` with `include:`, which is how its
+  image gets built.
+- **Lab instances.** On the VPS each student starts their own copy of a lab
+  from the lab list. It is served at `https://<lab>-<8 hex>.pwnshop.uk/`,
+  stops after an hour unless they extend it, and is gone when stopped - so
+  starting again is the reset. At most one per student, 10 at once.
+- **The lab manager** (`labmanager/`, standard-library Python). The only
+  thing that touches Docker: it starts and stops instances when the portal
+  asks, over the internal `labcontrol` network with a token.
+- **The lab proxy** (`labproxy/Caddyfile`). Routes each instance's hostname
+  to its container. The host's Caddy sends it `*.pwnshop.uk` with a key.
+
+The lab manager and lab proxy run only with `--profile labs`; on a laptop the
+lab list just links to each lab's `url`.
 
 ### Ground rules
 
 Labs are exploitable by design, so assume a student gets code execution
 inside one.
 
-- **The portal never controls Docker.** It only links to labs: it doesn't
-  start, stop or proxy them, and never mounts the Docker socket - a process
-  holding the socket is effectively root on the VPS.
-- **Each lab gets its own Docker network.** No lab can reach the portal, its
-  database, or another lab.
+- **The portal never holds the Docker socket.** A process holding it is
+  effectively root on the VPS. Only the lab manager mounts it, and it offers
+  the portal nothing but start / extend / stop / look up for catalogue labs
+  (`labmanager/labs.json`).
+- **Each lab instance gets its own internal Docker network**, shared only
+  with the lab proxy. No lab can reach the portal, its database, the lab
+  manager, another instance or the internet. The proxy only forwards
+  requests carrying the key the host's Caddy adds, so a lab can't use it to
+  reach another student's instance.
 - **On the VPS, a lab never shares the portal's hostname - not even on
   another port.** Browsers send a host's cookies to every port on it, so the
-  lab would receive every student's portal session cookie. Use a separate
-  (sub)domain per lab.
-- **Labs get no open internet access and get CPU/memory limits** - above all
-  the SSRF and command-injection labs, or they become a launch point against
-  other machines, and one student can starve everyone else. *(Not set up
-  yet - needed before the VPS goes live.)*
+  lab would receive every student's portal session cookie. Instances are on
+  subdomains instead, and with `DJANGO_HTTPS=True` the portal's cookies are
+  `__Host-` prefixed so a lab can't overwrite them from a subdomain.
+- **Instances get CPU, memory and process limits** (per lab in
+  `labs.json`), so one student can't starve everyone else - the VPS is a
+  friend's 4 GB server shared with their own things.
 - **The portal has no deliberate weaknesses.** Keep Django's defences on
   (CSRF, clickjacking protection, password validators).
+- **Every lab serves HTTP on port 80** inside its container - the lab proxy
+  forwards there.
 
 ## Repository layout
 
@@ -55,15 +75,24 @@ inside one.
 portal/                  Django project - manage.py lives here
   config/                settings, urls, wsgi/asgi, test runner
   core/                  public pages: the landing page at /
-  labs/                  Lab model + admin, the lab list page at /labs/
+  labs/                  Lab model + admin, the lab list at /labs/, start/extend/stop,
+                         manager.py - the client for the lab manager
   templates/             site-wide templates: base.html, registration/login.html
   static/                site-wide CSS
   Dockerfile  entrypoint.sh  requirements.txt  .env.example
+labmanager/              starts/stops lab instances; holds the Docker socket
+  manager.py  docker_api.py  labs.json (the catalogue)  tests.py  Dockerfile
+labproxy/Caddyfile       routes <lab>-<8 hex>.pwnshop.uk to its instance
 vulnerable-sites/
   fellside/              PHP 8.3 / SQLite / Apache outdoor-kit shop (see its README)
   e-commerce/            empty placeholder files
-docker-compose.yml       the portal + an include: line per lab
+docker-compose.yml       portal, lab manager + proxy (profile "labs"), include: per lab
+.env.example             compose settings for the VPS: lab manager token, proxy key
 ```
+
+A new lab needs three things: its folder and `include:` line, an entry in
+`labmanager/labs.json` (image, memory, CPUs) with the same slug, and a `Lab`
+row in the admin.
 
 ## Current state
 
@@ -75,33 +104,39 @@ Update this list as things land. As of 2026-11-17:
   migration; the lab list at `/labs/`, behind login. Accounts are created by
   staff in the admin - there is no sign-up page. `DJANGO_HTTPS=True` switches
   on the settings for running behind an HTTPS reverse proxy (proxy header,
-  HTTPS redirect, Secure cookies, HSTS without subdomains).
+  HTTPS redirect, Secure `__Host-` cookies, HSTS without subdomains). With
+  `LAB_MANAGER_URL` set, the lab list has Start / extend / Stop for each
+  student's own instance.
+- **Deployment:** live at https://pwnshop.uk on a friend's Hetzner VPS
+  (Ubuntu 26.04, 2 vCPU, 4 GB). Cloudflare proxies the domain (SSL Full
+  (strict), Origin Certificate); the host's Caddy terminates HTTPS and
+  forwards `pwnshop.uk` to the portal on `127.0.0.1:8000` and `*.pwnshop.uk`
+  to the lab proxy on `127.0.0.1:8081`.
 - **Brand:** the site is called **PWNShop**; colours `#743bbc` and white, as CSS variables at the top of
   `portal/static/css/style.css`. White on `#743bbc` passes WCAG AA, so the
   purple can carry text.
 - **Fellside:** a complete shop that is intentionally *secure* so far - no
   vulnerabilities added yet. Its README lists where each class would fit.
 - **Not built yet:** any vulnerability; the exploit/defend teaching content;
-  progress tracking; the VPS deployment (hostnames, reverse proxy, HTTPS,
-  lab egress blocking and resource limits).
+  progress tracking; restricting the VPS's ports 80/443 to Cloudflare's IP
+  ranges; database backups.
 
 ## Open decisions - ask the team, don't pick one silently
 
-1. **Shared or per-student lab instances?** Shared is simple, but one
-   student's stored XSS or dropped table hits everyone. Per-student needs
-   something that starts containers - which collides with "the portal never
-   controls Docker".
-2. **How labs are exposed on the VPS** - most likely a subdomain per lab
-   behind a reverse proxy with HTTPS; it must respect the ground rules above.
-3. **Where teaching content lives** - in the portal's database (editable in
+1. **Where teaching content lives** - in the portal's database (editable in
    the admin) or as files beside each lab (versioned with its code).
-4. **How a lab counts as completed** - a captured flag, self-reporting, or a
+2. **How a lab counts as completed** - a captured flag, self-reporting, or a
    check the portal runs.
-5. **Accounts** - self sign-up, or issued by staff (the current behaviour).
-6. **How vulnerabilities are switched on** - Fellside reserves a
+3. **Accounts** - self sign-up, or issued by staff (the current behaviour).
+4. **How vulnerabilities are switched on** - Fellside reserves a
    `[vulnerabilities]` section in `config/app.ini` for per-class toggles; the
    alternative is one container per vulnerable variant.
-7. **Resetting labs** - on a schedule, on demand, or per session.
+
+Settled on 2026-11-17: **per-student instances**, started on demand by the
+lab manager (not the portal); **exposed as `<lab>-<8 hex>.pwnshop.uk`** - one
+level of subdomain, so Cloudflare's free certificate covers it; **reset** by
+stopping and starting again, with instances stopping after an hour unless
+extended.
 
 ## Working on the labs (`vulnerable-sites/`)
 
@@ -130,14 +165,17 @@ brought in line with these. Keep to them:
   loaded with `{% load static %}` - no inline `<style>` blocks.
 - Data lives in models, managed in the Django admin. Seed data goes in a data
   migration. The portal never reads files from `vulnerable-sites/` - its image
-  is built from `portal/` alone; a new lab is a `Lab` row.
+  is built from `portal/` alone; a new lab is a `Lab` row (plus its
+  `labmanager/labs.json` entry - see Repository layout).
 - Generic class-based views (`ListView`, `TemplateView`, `LoginView`) where
   one fits, plain function views otherwise. Pages are protected with
   `LoginRequiredMixin` / `@login_required`.
 - Configuration comes from `portal/.env` via python-dotenv, and every key is
   listed in `.env.example`. Required secrets are read with
   `os.environ['KEY']`, so a missing one fails at startup - never fall back to
-  a default or a generated value.
+  a default or a generated value. The exception is `LAB_MANAGER_URL` /
+  `LAB_MANAGER_TOKEN`, shared with the lab manager, so they come from the
+  root `.env` through `docker-compose.yml`.
 - Single quotes in Python. Comments explain *why*, not what.
 - Exact pins in `requirements.txt` (`==`).
 - Tests use `django.test.TestCase` in each app's `tests.py`, are named for
@@ -153,9 +191,18 @@ python manage.py migrate
 python manage.py test
 python manage.py runserver
 
-# Everything - from the repo root
+# Lab manager tests - from labmanager/, no packages needed
+python -m unittest tests
+
+# Everything on a laptop - from the repo root
 docker compose up --build
 docker compose exec portal python manage.py createsuperuser
+
+# On the VPS - from the repo root, with the root .env filled in. Build the
+# lab images first: the lab manager starts instances from them, it doesn't
+# build them. The permanent Fellside container isn't needed there.
+docker compose build fellside
+docker compose --profile labs up -d --build portal labmanager labproxy
 ```
 
 If you can't run Docker where you are, say so - don't claim the containers

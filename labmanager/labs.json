@@ -1,0 +1,7 @@
+{
+  "fellside": {
+    "image": "fellside:latest",
+    "memory_mb": 192,
+    "cpus": 0.5
+  }
+}
