@@ -1,0 +1,22 @@
+services:
+  portal:
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      VULNERABLE_SITES_DIR: /app/vulnerable-sites
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    depends_on:
+      - fellside
+
+include:
+  - path: ./vulnerable-sites/fellside/docker-compose.yml
