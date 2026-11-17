@@ -46,6 +46,25 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+# On the VPS, Caddy terminates HTTPS and hands requests to Gunicorn over plain
+# HTTP. Unless told, Django thinks every request is insecure - and its CSRF
+# check then rejects every login, because the browser's Origin is https://
+# while Django believes it is serving http://. Off unless set to the exact
+# string 'True', so `docker compose up` on a laptop keeps working over
+# http://127.0.0.1:8000.
+if os.environ.get('DJANGO_HTTPS', 'False') == 'True':
+    # Safe to trust only because docker-compose.yml binds the portal to
+    # 127.0.0.1, so nothing but the proxy on the same host can reach Gunicorn,
+    # and Caddy overwrites this header instead of passing on the client's.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # A year, as Django's deploy check asks. Subdomains are left out until the
+    # lab hostnames are settled (open decision 2 in CLAUDE.md): HSTS on them
+    # would force HTTPS onto labs that may not have it yet.
+    SECURE_HSTS_SECONDS = 31536000
+
 
 # Application definition
 

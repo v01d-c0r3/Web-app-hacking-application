@@ -73,7 +73,9 @@ Update this list as things land. As of 2026-11-17:
   log-in call to action) with a shared nav bar and footer; login and logout;
   a `Lab` model managed in the admin, with Fellside seeded by a data
   migration; the lab list at `/labs/`, behind login. Accounts are created by
-  staff in the admin - there is no sign-up page.
+  staff in the admin - there is no sign-up page. `DJANGO_HTTPS=True` switches
+  on the settings for running behind an HTTPS reverse proxy (proxy header,
+  HTTPS redirect, Secure cookies, HSTS without subdomains).
 - **Brand:** the site is called **PWNShop**; colours `#743bbc` and white, as CSS variables at the top of
   `portal/static/css/style.css`. White on `#743bbc` passes WCAG AA, so the
   purple can carry text.
