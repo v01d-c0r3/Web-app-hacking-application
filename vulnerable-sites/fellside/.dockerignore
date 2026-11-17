@@ -1,0 +1,5 @@
+.git
+*.sqlite
+data/
+public/uploads/*
+!public/uploads/.gitkeep

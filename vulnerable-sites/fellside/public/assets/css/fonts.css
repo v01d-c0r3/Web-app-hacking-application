@@ -1,0 +1,11 @@
+/* Archivo (SIL Open Font License), self-hosted so the site works on offline lab networks.
+   The file is fetched at image build time by docker/fetch-fonts.sh. If it is missing,
+   the stack in site.css falls back to Arial Narrow / Helvetica. */
+@font-face {
+  font-family: "Archivo";
+  src: url("/assets/fonts/archivo.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}

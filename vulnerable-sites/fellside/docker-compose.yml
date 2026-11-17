@@ -1,0 +1,17 @@
+services:
+  fellside:
+    build: .
+    image: fellside:latest
+    container_name: fellside
+    ports:
+      - "8080:80"
+    environment:
+      # Set to 1 to wipe and reseed the database on start
+      FELLSIDE_RESET: "0"
+    volumes:
+      - fellside-data:/var/www/data
+      # Mount a different config to randomise a build:
+      # - ./config/app.ini:/var/www/fellside/config/app.ini:ro
+
+volumes:
+  fellside-data:
