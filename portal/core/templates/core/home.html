@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  The public landing page. Full-width sections, so it empties main_class and
+  centres each section's content with .container itself.
+
+  Logged-in visitors get "Go to your labs" wherever an anonymous one gets
+  "Log in" - the page is the same for both otherwise.
+{% endcomment %}
+
+{% block main_class %}{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+  <div class="container hero-inner">
+    <p class="eyebrow">Hands-on web security</p>
+    <h1 class="hero-title">Learn by Breaking</h1>
+    <p class="hero-lead">
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
+      tempor incididunt ut labore et dolore magna aliqua.
+    </p>
+    <div class="hero-actions">
+      {% if user.is_authenticated %}
+        <a href="{% url 'labs:lab_list' %}" class="button button--light">Go to your labs</a>
+      {% else %}
+        <a href="{% url 'login' %}" class="button button--light">Log in to start</a>
+      {% endif %}
+      <a href="#how-it-works" class="button button--outline-light">How it works</a>
+    </div>
+  </div>
+</section>
+
+
+<section class="section" id="about">
+  <div class="container">
+    <p class="eyebrow">About</p>
+    <h2 class="section-title">Learn security by attacking it - safely</h2>
+    <div class="about-grid">
+      <div class="about-text">
+        <p>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
+          ad minim veniam, quis nostrud exercitation ullamco laboris.
+        </p>
+        <p>
+          Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
+          dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
+          proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        </p>
+      </div>
+      <div>
+        <h3 class="list-title">What you'll practise</h3>
+        <ul class="tag-list">
+          <li>SQL injection</li>
+          <li>IDOR</li>
+          <li>Cross-site scripting</li>
+          <li>Broken access control</li>
+          <li>OS command injection</li>
+          <li>Cross-site request forgery</li>
+          <li>Server-side request forgery</li>
+          <li>Server-side template injection</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section section--tinted" id="how-it-works">
+  <div class="container">
+    <p class="eyebrow">How it works</p>
+    <h2 class="section-title">From login to fix in four steps</h2>
+    <ol class="steps">
+      <li class="step">
+        <span class="step-number" aria-hidden="true">1</span>
+        <h3>Log in</h3>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+      </li>
+      <li class="step">
+        <span class="step-number" aria-hidden="true">2</span>
+        <h3>Pick a lab</h3>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+      </li>
+      <li class="step">
+        <span class="step-number" aria-hidden="true">3</span>
+        <h3>Exploit it</h3>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+      </li>
+      <li class="step">
+        <span class="step-number" aria-hidden="true">4</span>
+        <h3>Learn the fix</h3>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+
+<section class="cta">
+  <div class="container cta-inner">
+    {% if user.is_authenticated %}
+      <h2 class="cta-title">Your labs are waiting</h2>
+      <a href="{% url 'labs:lab_list' %}" class="button button--light">Go to your labs</a>
+    {% else %}
+      <h2 class="cta-title">Ready to start?</h2>
+      <p>Log in with the account you've been given.</p>
+      <a href="{% url 'login' %}" class="button button--light">Log in</a>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}
