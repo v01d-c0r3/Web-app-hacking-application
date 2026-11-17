@@ -437,6 +437,17 @@ a:hover {
   font-size: 1.2rem;
 }
 
+/* Forms, so Start / extend / Stop sit in a row beside the Open lab link. */
+.lab-action {
+  display: inline-block;
+  margin: 0 0.5rem 0 0;
+}
+
+.messages {
+  padding: 0;
+  list-style: none;
+}
+
 
 /* Forms */
 

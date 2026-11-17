@@ -11,14 +11,41 @@
   test is illegal.
 </p>
 
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="notice">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
 {% if labs %}
   <ul class="lab-list">
     {% for lab in labs %}
       <li class="lab-card">
         <h2>{{ lab.name }}</h2>
         <p>{{ lab.description }}</p>
-        {# A new tab with no window.opener: labs run attacker-written script by design, which must not be able to navigate this tab. #}
-        <a href="{{ lab.url }}" target="_blank" rel="noopener noreferrer">Open lab</a>
+        {% if not spawning %}
+          {# A new tab with no window.opener: labs run attacker-written script by design, which must not be able to navigate this tab. #}
+          <a href="{{ lab.url }}" target="_blank" rel="noopener noreferrer">Open lab</a>
+        {% elif instance and instance.lab == lab.slug %}
+          <p>Your copy of this lab stops in {{ instance.expires_at|timeuntil }}. Anything you changed in it goes with it.</p>
+          {# Same reasoning as the plain link above: no window.opener for the lab. #}
+          <a href="{{ instance.url }}" target="_blank" rel="noopener noreferrer" class="button">Open lab</a>
+          <form method="post" action="{% url 'labs:extend' %}" class="lab-action">
+            {% csrf_token %}
+            <button type="submit" class="button button--outline">Give me another hour</button>
+          </form>
+          <form method="post" action="{% url 'labs:stop' %}" class="lab-action">
+            {% csrf_token %}
+            <button type="submit" class="button button--outline">Stop lab</button>
+          </form>
+        {% else %}
+          <form method="post" action="{% url 'labs:start' lab.slug %}" class="lab-action">
+            {% csrf_token %}
+            <button type="submit" class="button">Start lab</button>
+          </form>
+        {% endif %}
       </li>
     {% endfor %}
   </ul>

@@ -1,9 +1,10 @@
 """Models for the lab catalogue.
 
 A lab is one deliberately vulnerable app running in its own container under
-vulnerable-sites/. The portal only ever *links* to a lab - it never starts,
-stops or talks to the container - so all it needs to know is what the lab is
-called and where a student's browser should go.
+vulnerable-sites/. The portal never touches Docker. On the VPS it asks the lab
+manager to start a student's own instance of the lab by its slug, which must
+match an entry in labmanager/labs.json; on a laptop, without a lab manager,
+it just links to `url`.
 """
 
 from django.db import models

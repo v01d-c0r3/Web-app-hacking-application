@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -60,10 +61,17 @@ if os.environ.get('DJANGO_HTTPS', 'False') == 'True':
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    # A year, as Django's deploy check asks. Subdomains are left out until the
-    # lab hostnames are settled (open decision 2 in CLAUDE.md): HSTS on them
-    # would force HTTPS onto labs that may not have it yet.
+    # A year, as Django's deploy check asks. Subdomains are left out: they are
+    # where the lab instances live, and how those are served shouldn't be
+    # pinned by a header the portal sent a year ago.
     SECURE_HSTS_SECONDS = 31536000
+    # Lab instances live on subdomains of the portal's domain, and a student
+    # with code execution in one could set a cookie for the whole domain -
+    # overwriting another student's session or CSRF cookie when they visit.
+    # Browsers refuse to let anything but the portal's own host set a
+    # __Host- cookie. Renaming logs everyone out once.
+    SESSION_COOKIE_NAME = '__Host-sessionid'
+    CSRF_COOKIE_NAME = '__Host-csrftoken'
 
 
 # Application definition
@@ -198,3 +206,18 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'labs:lab_list'
 
 LOGOUT_REDIRECT_URL = 'core:home'
+
+
+# Lab instances
+# On the VPS each student starts their own copy of a lab, through the lab
+# manager in labmanager/ - the portal never touches Docker itself. Unset on a
+# laptop, where the lab list links straight to each lab's URL instead.
+
+LAB_MANAGER_URL = os.environ.get('LAB_MANAGER_URL', '')
+
+# Required once the lab manager is in use: it is all that stops anything else
+# on its network from starting labs. Checked for emptiness too, because
+# docker-compose.yml passes an unset value through as ''.
+LAB_MANAGER_TOKEN = os.environ['LAB_MANAGER_TOKEN'] if LAB_MANAGER_URL else ''
+if LAB_MANAGER_URL and not LAB_MANAGER_TOKEN:
+    raise ImproperlyConfigured('LAB_MANAGER_URL is set but LAB_MANAGER_TOKEN is empty.')
