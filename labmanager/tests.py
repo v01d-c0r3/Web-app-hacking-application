@@ -2,8 +2,10 @@
 
 Covered: one instance per student, each on its own network that the lab proxy
 joins; the cap on running instances; extending and expiry; nothing left
-behind when a start fails or after a restart; and the HTTP API refusing
-anyone without the token. Docker is replaced by a fake that records calls.
+behind when a start fails or after a restart; when Docker fails part-way
+through removing an instance, it stays tracked until a retry succeeds, and
+anything untracked is swept up; and the HTTP API refusing anyone without the
+token. Docker is replaced by a fake that records calls.
 """
 
 import json
@@ -24,6 +26,8 @@ class FakeDocker:
         self.containers = set()
         self.networks = {}  # name -> set of connected containers
         self.fail_run = fail_run
+        # Containers Docker fails to remove, until a test clears this.
+        self.stuck = set()
 
     def create_network(self, name, labels):
         self.networks[name] = set()
@@ -44,6 +48,8 @@ class FakeDocker:
         self.networks[network].add(name)
 
     def remove_container(self, name):
+        if name in self.stuck:
+            raise DockerError(500, 'removal failed')
         self.containers.discard(name)
         for members in self.networks.values():
             members.discard(name)
@@ -188,6 +194,74 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(docker.containers, set())
         self.assertEqual(docker.networks, {})
 
+    def test_a_failed_stop_keeps_the_instance_so_stopping_again_finishes_it(self):
+        docker = FakeDocker()
+        manager, _ = make_manager(docker)
+        instance = manager.start('7', 'fellside')
+        docker.stuck.add(instance.name)
+
+        with self.assertRaises(DockerError):
+            manager.stop('7')
+        self.assertIs(manager.get('7'), instance)
+        self.assertIn(instance.name, docker.containers)
+
+        docker.stuck.clear()
+        manager.stop('7')
+        self.assertIsNone(manager.get('7'))
+        self.assertNotIn(instance.name, docker.containers)
+        self.assertNotIn(instance.network, docker.networks)
+
+    def test_an_expired_instance_that_fails_to_stop_is_retried_next_pass(self):
+        docker = FakeDocker()
+        manager, clock = make_manager(docker)
+        stuck = manager.start('1', 'fellside')
+        other = manager.start('2', 'fellside')
+        docker.stuck.add(stuck.name)
+        clock.now += 3600
+
+        with self.assertRaises(DockerError):
+            manager.stop_expired()
+        # One failure doesn't hold up the others.
+        self.assertIsNone(manager.get('2'))
+        self.assertNotIn(other.name, docker.containers)
+        self.assertIs(manager.get('1'), stuck)
+
+        docker.stuck.clear()
+        manager.stop_expired()
+        self.assertIsNone(manager.get('1'))
+        self.assertNotIn(stuck.name, docker.containers)
+
+    def test_a_failed_start_whose_clean_up_fails_reports_the_start_error(self):
+        docker = FakeDocker()
+        manager, _ = make_manager(docker)
+        # Fails after the container is created, so there is something to
+        # clean up - and the clean-up fails too.
+        def failing_connect(network, container):
+            raise DockerError(500, 'connect failed')
+        docker.connect = failing_connect
+        docker.stuck.add('fellside-00000001')
+
+        with self.assertRaisesRegex(DockerError, 'connect failed'):
+            manager.start('7', 'fellside')
+
+        self.assertIsNone(manager.get('7'))
+        self.assertIn('fellside-00000001', docker.containers)
+
+    def test_the_sweep_removes_untracked_leftovers_but_spares_running_labs(self):
+        docker = FakeDocker()
+        manager, _ = make_manager(docker)
+        running = manager.start('7', 'fellside')
+        # As left by a failed start whose clean-up also failed.
+        docker.create_network('pwnshop-net-fellside-deadbeef', {})
+        docker.run('fellside-deadbeef', 'fellside:latest',
+                   'pwnshop-net-fellside-deadbeef', {}, 192, 0.5)
+
+        manager.clean_up_leftovers()
+
+        self.assertEqual(docker.containers, {running.name})
+        self.assertEqual(set(docker.networks), {running.network})
+        self.assertIs(manager.get('7'), running)
+
 
 class ApiTests(unittest.TestCase):
     TOKEN = 'test-token'
@@ -240,6 +314,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(status, 204)
         status, _ = self.request('GET', '/instances/7')
         self.assertEqual(status, 404)
+
+    def test_a_failed_stop_is_reported_and_the_lab_stays_listed(self):
+        self.request('PUT', '/instances/7', {'lab': 'fellside'})
+        self.manager.docker.stuck.add('fellside-00000001')
+
+        status, body = self.request('DELETE', '/instances/7')
+
+        self.assertEqual(status, 502)
+        self.assertIn('could not be stopped', body['error'])
+        status, _ = self.request('GET', '/instances/7')
+        self.assertEqual(status, 200)
 
     def test_user_ids_must_be_numeric(self):
         status, _ = self.request('PUT', '/instances/../x', {'lab': 'fellside'})
