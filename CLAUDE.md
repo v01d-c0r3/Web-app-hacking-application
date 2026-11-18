@@ -61,9 +61,12 @@ inside one.
   lab would receive every student's portal session cookie. Instances are on
   subdomains instead, and with `DJANGO_HTTPS=True` the portal's cookies are
   `__Host-` prefixed so a lab can't overwrite them from a subdomain.
-- **Instances get CPU, memory and process limits** (per lab in
+- **Instances get CPU, memory, process and disk limits** (per lab in
   `labs.json`), so one student can't starve everyone else - the VPS is a
-  friend's 4 GB server shared with their own things.
+  friend's 4 GB server shared with their own things. An instance's image is
+  read-only; only the paths in its `writable` list can be written, as
+  size-capped tmpfs held in RAM that counts against its memory limit. Its
+  logs are capped at 10 MB.
 - **The portal has no deliberate weaknesses.** Keep Django's defences on
   (CSRF, clickjacking protection, password validators).
 - **Every lab serves HTTP on port 80** inside its container - the lab proxy
@@ -91,8 +94,16 @@ docker-compose.yml       portal, lab manager + proxy (profile "labs"), include: 
 ```
 
 A new lab needs three things: its folder and `include:` line, an entry in
-`labmanager/labs.json` (image, memory, CPUs) with the same slug, and a `Lab`
-row in the admin.
+`labmanager/labs.json` (image, memory, CPUs, writable paths) with the same
+slug, and a `Lab` row in the admin.
+
+`writable` maps each path the lab writes to onto a tmpfs size, e.g.
+`"/var/www/data": "32m"`. Anything not listed is read-only, so a lab that
+fails to save something has a path missing here. Include `/tmp` and `/run`
+for most stacks (sessions, uploads in progress, PID files), and plan the
+list with the lesson: if an exploit should be able to write somewhere -
+say, a web shell into the web root - that path must be writable. Writable
+paths are mounted `noexec`.
 
 ## Current state
 

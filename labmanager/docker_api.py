@@ -79,7 +79,7 @@ class Docker:
                       {'Container': container, 'Force': True},
                       ok=(200, 204, 404))
 
-    def run(self, name, image, network, labels, memory_mb, cpus):
+    def run(self, name, image, network, labels, memory_mb, cpus, writable):
         memory = memory_mb * 1024 * 1024
         self._request('POST', f'/containers/create?{urlencode({"name": name})}', {
             'Image': image,
@@ -97,6 +97,19 @@ class Docker:
                 # them to start as root and drop to www-data.
                 'CapDrop': ['NET_RAW'],
                 'SecurityOpt': ['no-new-privileges:true'],
+                # Docker can only cap a container's disk use on XFS with
+                # project quotas, which the VPS can't be assumed to have. So
+                # the image is read-only and the paths the lab writes to are
+                # tmpfs: size-capped, and held in RAM that counts against
+                # Memory above - a student can't fill the host's disk.
+                'ReadonlyRootfs': True,
+                'Tmpfs': {path: f'rw,noexec,nosuid,nodev,size={size}'
+                          for path, size in writable.items()},
+                # The daemon's default keeps every log line forever, and
+                # Apache logs each request to stdout. Set here rather than in
+                # the daemon's config, which the VPS shares with other things.
+                'LogConfig': {'Type': 'json-file',
+                              'Config': {'max-size': '10m', 'max-file': '1'}},
             },
         })
         self._request('POST', f'/containers/{quote(name)}/start')

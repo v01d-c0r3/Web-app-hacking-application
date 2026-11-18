@@ -2,6 +2,12 @@
   "fellside": {
     "image": "fellside:latest",
     "memory_mb": 192,
-    "cpus": 0.5
+    "cpus": 0.5,
+    "writable": {
+      "/run": "1m",
+      "/tmp": "16m",
+      "/var/www/data": "32m",
+      "/var/www/fellside/public/uploads": "32m"
+    }
   }
 }

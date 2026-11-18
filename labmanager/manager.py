@@ -153,7 +153,8 @@ class Manager:
             self.docker.create_network(network, labels)
             try:
                 self.docker.run(name, spec['image'], network, labels,
-                                spec['memory_mb'], spec['cpus'])
+                                spec['memory_mb'], spec['cpus'],
+                                spec.get('writable', {}))
                 self.docker.connect(network, self.proxy_container)
             except DockerError:
                 # Best effort. If this fails too, clean_up_leftovers sweeps up
