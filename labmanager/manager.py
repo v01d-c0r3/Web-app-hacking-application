@@ -15,7 +15,8 @@ nothing else.
 
 Each instance is a container named <lab>-<8 hex>, on a network of its own
 with no route off the host. The lab proxy is connected to that network so it
-can forward https://<lab>-<8 hex>.<LAB_DOMAIN>/ to it.
+can forward https://<lab>-<8 hex>.<LAB_DOMAIN>/ to it - and reconnected
+within 30 seconds if the proxy container is recreated and loses it.
 
 State is held in memory only. On startup every container and network this
 service created is removed, so a restart stops all running labs - acceptable
@@ -109,6 +110,24 @@ class Manager:
                 [n for n in self.docker.networks_with_label(label)
                  if n not in networks],
                 self._remove_network)
+
+    def reconnect_proxy(self):
+        """Join the lab proxy to any running instance's network it isn't on.
+
+        The proxy joins each instance's network at runtime, and Docker drops
+        those connections whenever the proxy container is recreated - by a
+        `docker compose up` after a Caddyfile change, say. Every running lab
+        would then answer 502 while still listed as running. The reaper runs
+        this on every pass, so the proxy heals itself within one interval.
+        """
+        with self._lock:
+            # Only the missing ones: Docker refuses to connect a container to
+            # a network it is already on.
+            joined = set(self.docker.container_networks(self.proxy_container))
+            _for_each(
+                [i.network for i in self._instances.values()
+                 if i.network not in joined],
+                lambda network: self.docker.connect(network, self.proxy_container))
 
     def get(self, user):
         with self._lock:
@@ -281,8 +300,9 @@ def make_handler(manager, token):
 def _reap_forever(manager, interval=30):
     while True:
         time.sleep(interval)
-        # Each in its own try, so a failure in one doesn't skip the other.
-        for task in (manager.stop_expired, manager.clean_up_leftovers):
+        # Each in its own try, so a failure in one doesn't skip the others.
+        for task in (manager.stop_expired, manager.clean_up_leftovers,
+                     manager.reconnect_proxy):
             try:
                 task()
             except DockerError as error:

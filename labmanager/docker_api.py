@@ -105,6 +105,10 @@ class Docker:
         self._request('DELETE', f'/containers/{quote(name)}?force=true',
                       ok=(200, 204, 404))
 
+    def container_networks(self, name):
+        found = self._request('GET', f'/containers/{quote(name)}/json')
+        return list(found['NetworkSettings']['Networks'])
+
     def containers_with_label(self, label):
         found = self._request(
             'GET', f'/containers/json?all=true&{self._label_filter(label)}')

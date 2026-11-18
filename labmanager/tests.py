@@ -4,8 +4,8 @@ Covered: one instance per student, each on its own network that the lab proxy
 joins; the cap on running instances; extending and expiry; nothing left
 behind when a start fails or after a restart; when Docker fails part-way
 through removing an instance, it stays tracked until a retry succeeds, and
-anything untracked is swept up; and the HTTP API refusing anyone without the
-token. Docker is replaced by a fake that records calls.
+anything untracked is swept up; a recreated lab proxy is reconnected to every
+running lab; and the HTTP API refusing anyone without the token. Docker is replaced by a fake that records calls.
 """
 
 import json
@@ -36,6 +36,9 @@ class FakeDocker:
         self.networks.pop(name, None)
 
     def connect(self, network, container):
+        # As Docker does: connecting twice is an error, not a no-op.
+        if container in self.networks[network]:
+            raise DockerError(403, 'endpoint already exists')
         self.networks[network].add(container)
 
     def disconnect(self, network, container):
@@ -51,6 +54,14 @@ class FakeDocker:
         if name in self.stuck:
             raise DockerError(500, 'removal failed')
         self.containers.discard(name)
+        for members in self.networks.values():
+            members.discard(name)
+
+    def container_networks(self, name):
+        return [n for n, members in self.networks.items() if name in members]
+
+    def recreate(self, name):
+        """What `docker compose up` does to a changed service's container."""
         for members in self.networks.values():
             members.discard(name)
 
@@ -261,6 +272,26 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(docker.containers, {running.name})
         self.assertEqual(set(docker.networks), {running.network})
         self.assertIs(manager.get('7'), running)
+
+    def test_a_recreated_proxy_is_reconnected_to_every_running_lab(self):
+        docker = FakeDocker()
+        manager, _ = make_manager(docker)
+        first = manager.start('1', 'fellside')
+        second = manager.start('2', 'fellside')
+        docker.recreate('pwnshop-labproxy')
+
+        manager.reconnect_proxy()
+
+        self.assertIn('pwnshop-labproxy', docker.networks[first.network])
+        self.assertIn('pwnshop-labproxy', docker.networks[second.network])
+
+    def test_reconnecting_leaves_networks_the_proxy_is_still_on_alone(self):
+        """Docker errors on a duplicate connect, so this must not make one."""
+        docker = FakeDocker()
+        manager, _ = make_manager(docker)
+        manager.start('1', 'fellside')
+
+        manager.reconnect_proxy()  # would raise on a duplicate connect
 
 
 class ApiTests(unittest.TestCase):
