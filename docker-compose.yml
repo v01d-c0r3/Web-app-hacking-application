@@ -69,7 +69,11 @@ services:
   # lab manager connects it to each instance's private network. The host's
   # Caddy terminates HTTPS and forwards here with LAB_PROXY_KEY attached.
   labproxy:
-    image: caddy:2-alpine
+    # An exact version, not 2-alpine: a floating tag means a routine pull
+    # recreates this container unannounced. Recreating it drops its
+    # connections to every lab network - the lab manager reconnects them
+    # within 30 seconds, but upgrading should still be a deliberate change.
+    image: caddy:2.11.9-alpine
     container_name: pwnshop-labproxy
     profiles: [labs]
     restart: unless-stopped

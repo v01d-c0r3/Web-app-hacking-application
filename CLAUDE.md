@@ -61,9 +61,12 @@ inside one.
   lab would receive every student's portal session cookie. Instances are on
   subdomains instead, and with `DJANGO_HTTPS=True` the portal's cookies are
   `__Host-` prefixed so a lab can't overwrite them from a subdomain.
-- **Instances get CPU, memory and process limits** (per lab in
+- **Instances get CPU, memory, process and disk limits** (per lab in
   `labs.json`), so one student can't starve everyone else - the VPS is a
-  friend's 4 GB server shared with their own things.
+  friend's 4 GB server shared with their own things. An instance's image is
+  read-only; only the paths in its `writable` list can be written, as
+  size-capped tmpfs held in RAM that counts against its memory limit. Its
+  logs are capped at 10 MB.
 - **The portal has no deliberate weaknesses.** Keep Django's defences on
   (CSRF, clickjacking protection, password validators).
 - **Every lab serves HTTP on port 80** inside its container - the lab proxy
@@ -91,8 +94,16 @@ docker-compose.yml       portal, lab manager + proxy (profile "labs"), include: 
 ```
 
 A new lab needs three things: its folder and `include:` line, an entry in
-`labmanager/labs.json` (image, memory, CPUs) with the same slug, and a `Lab`
-row in the admin.
+`labmanager/labs.json` (image, memory, CPUs, writable paths) with the same
+slug, and a `Lab` row in the admin.
+
+`writable` maps each path the lab writes to onto a tmpfs size, e.g.
+`"/var/www/data": "32m"`. Anything not listed is read-only, so a lab that
+fails to save something has a path missing here. Include `/tmp` and `/run`
+for most stacks (sessions, uploads in progress, PID files), and plan the
+list with the lesson: if an exploit should be able to write somewhere -
+say, a web shell into the web root - that path must be writable. Writable
+paths are mounted `noexec`.
 
 ## Current state
 
@@ -215,7 +226,75 @@ scripts and Dockerfiles, because a CRLF entrypoint makes a Linux container die
 on start with a misleading "no such file or directory". Keep new scripts
 covered by it.
 
-## Commits and pull requests
+## Git workflow - branches, commits and pull requests
+
+These rules are not optional, for people or for Claude.
+
+### Never commit or merge straight into `main`
+
+- `main` is the shared, always-working branch. Nothing lands on it except
+  through a reviewed pull request: no direct commits, no `git merge` into
+  `main` locally, no `git push` to `main`.
+- If you find yourself on `main` with changes to make, create a branch first
+  (`git switch -c feat/...`) before committing anything.
+- Never force-push `main`.
+
+### Every piece of work lives on its own branch
+
+Branch off an up-to-date `main` and name the branch `<type>/<short-description>`,
+lower-case, words joined with hyphens:
+
+| Prefix      | For                                               | Example                     |
+|-------------|---------------------------------------------------|-----------------------------|
+| `feat/`     | a new feature or lab                              | `feat/fellside-sqli`        |
+| `fix/`      | a bug fix                                         | `fix/login-redirect-loop`   |
+| `docs/`     | documentation only (README, CLAUDE.md)            | `docs/git-workflow`         |
+| `refactor/` | restructuring with no change in behaviour         | `refactor/lab-model-fields` |
+| `test/`     | adding or fixing tests only                       | `test/labs-list-view`       |
+| `chore/`    | tooling, dependencies, Docker, CI, config         | `chore/pin-django-6-1-1`    |
+
+One branch, one topic. Keep branches short-lived and delete them once
+their pull request is merged.
+
+### Every commit is fully commented
+
+A commit message has a subject line **and** a body - never a subject alone,
+and never `wip`, `fix`, `update` or similar.
+
+- **Subject:** imperative mood, at most ~72 characters, no trailing full
+  stop, e.g. `Add login requirement to the lab list page`.
+- **Blank line**, then a **body** wrapped at ~72 characters that explains:
+  - *what* changed, in more detail than the subject;
+  - *why* it was needed - the problem, bug or decision behind it;
+  - anything a reviewer should know: side effects, migrations, follow-ups,
+    things deliberately left out.
+
+```
+Add login requirement to the lab list page
+
+The lab list was reachable without an account, so anyone who found the
+URL could see which labs exist and link straight to them. Wrap the view
+in LoginRequiredMixin so anonymous visitors are sent to the log-in page
+and returned to /labs/ afterwards.
+
+Adds a test pinning the redirect for anonymous visitors.
+```
+
+Make small, focused commits - one logical change each - so every commit
+message can honestly describe the whole commit.
+
+### Only pull requests go into `main`
+
+- Push the branch and open a pull request against `main`. The PR
+  description says what changed, why, and how it was tested (e.g.
+  `python manage.py test` passing, Docker build checked or not).
+- At least one other teammate reviews and approves before it is merged.
+- Merge only when the tests pass and the branch is up to date with `main`.
+- Claude may create branches, commit to them and open pull requests when
+  asked, but never merges a pull request into `main` itself - a teammate
+  does that after review.
+
+### No AI attribution
 
 No AI attribution of any kind. Don't add a `Co-Authored-By: Claude ...`
 trailer to commit messages, a "Generated with Claude Code" line to PR

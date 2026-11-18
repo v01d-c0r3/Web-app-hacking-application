@@ -15,12 +15,14 @@ nothing else.
 
 Each instance is a container named <lab>-<8 hex>, on a network of its own
 with no route off the host. The lab proxy is connected to that network so it
-can forward https://<lab>-<8 hex>.<LAB_DOMAIN>/ to it.
+can forward https://<lab>-<8 hex>.<LAB_DOMAIN>/ to it - and reconnected
+within 30 seconds if the proxy container is recreated and loses it.
 
 State is held in memory only. On startup every container and network this
 service created is removed, so a restart stops all running labs - acceptable
 while instances last an hour, and it means nothing is ever left running that
-the manager has forgotten about.
+the manager has forgotten about. The same sweep, sparing tracked instances,
+runs every 30 seconds for anything a failed Docker call left behind.
 """
 
 import hmac
@@ -85,13 +87,47 @@ class Manager:
         self._lock = threading.Lock()
 
     def clean_up_leftovers(self):
-        """Remove everything a previous run of the manager created."""
+        """Remove every container and network this service made but isn't tracking.
+
+        At startup that is everything a previous run left. After that it is
+        whatever a failed Docker call stranded - a start whose own clean-up
+        failed, say - so the reaper runs this on every pass too, as a safety
+        net: nothing the manager created stays running unaccounted for.
+        """
         label = f'{MANAGED_LABEL}=true'
-        for name in self.docker.containers_with_label(label):
-            self.docker.remove_container(name)
-        for network in self.docker.networks_with_label(label):
-            self.docker.disconnect(network, self.proxy_container)
-            self.docker.remove_network(network)
+        # Under the lock so a start in progress, whose container exists before
+        # its instance is recorded, isn't mistaken for a leftover.
+        with self._lock:
+            names = {i.name for i in self._instances.values()}
+            networks = {i.network for i in self._instances.values()}
+            # Containers first: Docker won't remove a network a container is
+            # still on. If one fails, its network waits for the next pass.
+            _for_each(
+                [c for c in self.docker.containers_with_label(label)
+                 if c not in names],
+                self.docker.remove_container)
+            _for_each(
+                [n for n in self.docker.networks_with_label(label)
+                 if n not in networks],
+                self._remove_network)
+
+    def reconnect_proxy(self):
+        """Join the lab proxy to any running instance's network it isn't on.
+
+        The proxy joins each instance's network at runtime, and Docker drops
+        those connections whenever the proxy container is recreated - by a
+        `docker compose up` after a Caddyfile change, say. Every running lab
+        would then answer 502 while still listed as running. The reaper runs
+        this on every pass, so the proxy heals itself within one interval.
+        """
+        with self._lock:
+            # Only the missing ones: Docker refuses to connect a container to
+            # a network it is already on.
+            joined = set(self.docker.container_networks(self.proxy_container))
+            _for_each(
+                [i.network for i in self._instances.values()
+                 if i.network not in joined],
+                lambda network: self.docker.connect(network, self.proxy_container))
 
     def get(self, user):
         with self._lock:
@@ -117,10 +153,17 @@ class Manager:
             self.docker.create_network(network, labels)
             try:
                 self.docker.run(name, spec['image'], network, labels,
-                                spec['memory_mb'], spec['cpus'])
+                                spec['memory_mb'], spec['cpus'],
+                                spec.get('writable', {}))
                 self.docker.connect(network, self.proxy_container)
             except DockerError:
-                self._remove(name, network)
+                # Best effort. If this fails too, clean_up_leftovers sweeps up
+                # what's left, and the student still sees why the start failed
+                # rather than an error about the clean-up.
+                try:
+                    self._remove(name, network)
+                except DockerError:
+                    pass
                 raise
 
             instance = Instance(user, lab, name, network,
@@ -138,23 +181,51 @@ class Manager:
 
     def stop(self, user):
         with self._lock:
-            instance = self._instances.pop(user, None)
-            if instance is not None:
-                self._remove(instance.name, instance.network)
+            if user in self._instances:
+                self._stop_locked(user)
 
     def stop_expired(self):
         now = self._clock()
         with self._lock:
             expired = [u for u, i in self._instances.items()
                        if i.expires_at <= now]
-            for user in expired:
-                instance = self._instances.pop(user)
-                self._remove(instance.name, instance.network)
+            # Every expired instance gets its attempt, even after one fails;
+            # the ones that failed stay listed and are retried next pass.
+            _for_each(expired, self._stop_locked)
+
+    def _stop_locked(self, user):
+        # Forget the instance only once it is gone. If Docker fails part-way,
+        # it stays listed - still counted against the cap, still shown to the
+        # student - and the next stop or reaper pass finishes the job, instead
+        # of a container running on that nothing will ever remove. Every
+        # removal step treats "already gone" as success, so retrying is safe.
+        instance = self._instances[user]
+        self._remove(instance.name, instance.network)
+        del self._instances[user]
 
     def _remove(self, name, network):
         self.docker.remove_container(name)
+        self._remove_network(network)
+
+    def _remove_network(self, network):
         self.docker.disconnect(network, self.proxy_container)
         self.docker.remove_network(network)
+
+
+def _for_each(items, action):
+    """Apply action to every item, then raise the first DockerError, if any.
+
+    For clean-up: giving up at the first failure would leave everything after
+    it running too.
+    """
+    first_error = None
+    for item in items:
+        try:
+            action(item)
+        except DockerError as error:
+            first_error = first_error or error
+    if first_error is not None:
+        raise first_error
 
 
 USER_PATH = re.compile(r'^/instances/(\d+)(/extend)?$')
@@ -206,7 +277,11 @@ def make_handler(manager, token):
                 return self._send(400, {'error': 'Bad request'})
             except DockerError as error:
                 self.log_error('%s', error)
-                return self._send(502, {'error': 'The lab could not be started.'})
+                # Stopping can fail now too, and the student is told so: their
+                # lab is still listed, and pressing Stop again retries.
+                action = 'stopped' if method == 'DELETE' else 'started'
+                return self._send(502, {
+                    'error': f'The lab could not be {action}. Try again in a moment.'})
 
         def do_GET(self):
             self._dispatch('GET')
@@ -226,10 +301,14 @@ def make_handler(manager, token):
 def _reap_forever(manager, interval=30):
     while True:
         time.sleep(interval)
-        try:
-            manager.stop_expired()
-        except DockerError as error:
-            print(f'Stopping expired labs failed: {error}', file=sys.stderr)
+        # Each in its own try, so a failure in one doesn't skip the others.
+        for task in (manager.stop_expired, manager.clean_up_leftovers,
+                     manager.reconnect_proxy):
+            try:
+                task()
+            except DockerError as error:
+                print(f'Lab clean-up ({task.__name__}) failed, retrying in '
+                      f'{interval}s: {error}', file=sys.stderr)
 
 
 def main():
