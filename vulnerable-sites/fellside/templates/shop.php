@@ -1,7 +1,15 @@
+<?php
+$xssOn = vuln('a02_xss')
+    && vuln_setting('a02_xss', 'type', ['stored', 'reflected']) === 'reflected';
+$headingTerm = $xssOn
+    ? xss_filter($term, vuln_setting('a02_xss', 'filter', ['none', 'strip_script']))
+    : e($term);
+?>
+
 <div class="wrap page">
   <header class="page-head">
     <?php if ($term !== ''): ?>
-      <h1>Results for “<?= e($term) ?>”</h1>
+      <h1>Results for “<?= $headingTerm ?>”</h1>
       <p><?= count($products) ?> <?= count($products) === 1 ? 'item matches' : 'items match' ?> your search.</p>
     <?php elseif ($category): ?>
       <h1><?= e($category['name']) ?></h1>

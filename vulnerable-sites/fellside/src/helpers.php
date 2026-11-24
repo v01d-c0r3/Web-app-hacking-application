@@ -77,3 +77,27 @@ function stars(int $n): string
 {
     return '<span class="stars" aria-label="' . $n . ' out of 5">' . str_repeat('●', $n) . '<span class="off">' . str_repeat('●', 5 - $n) . '</span></span>';
 }
+
+function vuln(string $name): bool
+{
+    return ($GLOBALS['config']['vulnerabilities'][$name] ?? false) === true;
+}
+
+function vuln_setting(string $name, string $key, array $allowed): string
+{
+    $value = $GLOBALS['config']["vuln.$name"][$key] ?? null;
+    if (!in_array($value, $allowed, true)) {
+        http_response_code(500);
+        exit("app.ini: [vuln.$name] $key must be one of: " . implode(', ', $allowed));
+    }
+    return $value;
+}
+
+function xss_filter(string $text, string $level): string
+{
+    return match ($level) {
+        'none'         => $text,
+        // One pass, lowercase only, and only the exact <script> tags.
+        'strip_script' => str_replace(['<script>', '</script>'], '', $text),
+    };
+}
