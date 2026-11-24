@@ -6,12 +6,20 @@ services:
     ports:
       - "127.0.0.1:8080:80"
     environment:
-      # Set to 1 to wipe and reseed the database on start
+      # Laptop only: set to 1 to wipe and reseed the database on start.
+      # Instances on the VPS are thrown away when they stop, so they always start fresh.
       FELLSIDE_RESET: "0"
     volumes:
       - fellside-data:/var/www/data
-      # Mount a different config to randomise a build:
-      # - ./config/app.ini:/var/www/fellside/config/app.ini:ro
+      # Live editing: these replace the copies baked into the image, so changes
+      # apply on the next page load. Read-only, so nothing in the container can
+      # write back into the repo. Not public/ - it holds the built fonts and
+      # the writable uploads folder. The lab manager ignores this file, so
+      # students' instances still run the built image.
+      - ./config:/var/www/fellside/config:ro
+      - ./src:/var/www/fellside/src:ro
+      - ./templates:/var/www/fellside/templates:ro
+      - ./db:/var/www/fellside/db:ro
     networks:
       - fellside-lab
 
